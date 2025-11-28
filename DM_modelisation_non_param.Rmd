@@ -21,7 +21,7 @@ data(WarsawApts)
 str(WarsawApts)
 ```
 
-Les variables sont les suivantes : 
+Les variables du jeu de données sont les suivantes : 
 
 - **surface** : surface en mètres carrés  
 - **district** : district (variable facteur à 4 modalités)  
@@ -30,45 +30,45 @@ Les variables sont les suivantes :
 - **construction.date** : année de construction  
 - **areaPerMzloty** : prix au mètre carré (variable à prédire)
 
-## Prédiction avec une seule variable explicative
+## Partie 1 : Prédiction avec une seule variable explicative
+### Exploration des variables
 
-Pour commencer, on veut modéliser le prix des appartements en fonction d'une seule variable. Pour choisir la plus adaptée, traçons le prix des appartements en fonction des différentes variables.On considère que l'on dispose de 4 variables explicatives quantitatives et une variable qualitative (district), que l'on va écarter de l'étude pour le moment.
+Pour commencer, on veut modéliser le prix des appartements en fonction d'une seule variable. Pour choisir la plus adaptée, traçons le prix des appartements en fonction des différentes variables. On considère que l'on dispose de 4 variables explicatives quantitatives et une variable qualitative (district), que l'on va écarter de l'étude pour le moment.
 
 ```{r, message=FALSE}
 library(ggplot2)
 library(patchwork)
 
-p1 <- ggplot(WarsawApts, aes(x = Surface, y = areaPerMzloty)) +
-  geom_point(color = "red", alpha = 0.5) +
-  labs(title = "Prix ~ Surface",
+p1 <- ggplot(WarsawApts, aes(x = surface, y = areaPerMzloty)) +
+  geom_point(color = "red") +
+  labs(title = "Prix en fonction de surface",
        x = "Surface (m²)", y = "Prix au m²")
 
 p2 <- ggplot(WarsawApts, aes(x = n.rooms, y = areaPerMzloty)) +
-  geom_point(color = "blue", alpha = 0.5) +
-  labs(title = "Prix ~ Nb chambres",
+  geom_point(color = "blue") +
+  labs(title = "Prix en fonction du nb de chambres",
        x = "Nombre de chambres", y = "Prix au m²")
 
 p3 <- ggplot(WarsawApts, aes(x = floor, y = areaPerMzloty)) +
-  geom_point(color = "darkgreen", alpha = 0.5) +
-  labs(title = "Prix ~ Étage",
+  geom_point(color = "darkgreen") +
+  labs(title = "Prix en fonction de l'étage",
        x = "Étage", y = "Prix au m²")
 
 p4 <- ggplot(WarsawApts, aes(x = construction.date, y = areaPerMzloty)) +
-  geom_point(color = "purple", alpha = 0.5) +
-  labs(title = "Prix ~ Année construction",
+  geom_point(color = "purple") +
+  labs(title = "Prix en fonction de l'année de construction",
        x = "Année de construction", y = "Prix au m²")
 
 (p1 | p2) /
 (p3 | p4)
-
-
 ```
 
+Il semble que la variable la plus adaptée pour faire une régression de la forme $y = f(x)$ soit l'année de construction. On va commencer pour faire une régression linéaire simple et polynomiale pour montrer qu'une méthode non paramétrique est plus adéptée.
 
-```{r}
+### Modélisation paramétrique du prix en fonction de l'année (Fouad)
 
-```
+### Modélisation non paramétrique du prix en fonction de l'année (Emilie)
 
-
+## Amélioration du modèle par en utilisant plusieurs variables explicatives
 
 
