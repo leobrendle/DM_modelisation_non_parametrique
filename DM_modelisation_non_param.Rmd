@@ -31,7 +31,7 @@ Les variables du jeu de données sont les suivantes :
 - **areaPerMzloty** : prix au mètre carré (variable à prédire)
 
 ## Partie 1 : Prédiction avec une seule variable explicative
-### Exploration des variables
+### 1. Exploration des variables
 
 Pour commencer, on veut modéliser le prix des appartements en fonction d'une seule variable. Pour choisir la plus adaptée, traçons le prix des appartements en fonction des différentes variables. On considère que l'on dispose de 4 variables explicatives quantitatives et une variable qualitative (district), que l'on va écarter de l'étude pour le moment.
 
@@ -65,10 +65,32 @@ p4 <- ggplot(WarsawApts, aes(x = construction.date, y = areaPerMzloty)) +
 
 Il semble que la variable la plus adaptée pour faire une régression de la forme $y = f(x)$ soit l'année de construction. On va commencer pour faire une régression linéaire simple et polynomiale pour montrer qu'une méthode non paramétrique est plus adéptée.
 
-### Modélisation paramétrique du prix en fonction de l'année (Fouad)
+### 2. Modélisation paramétrique du prix en fonction de l'année (Fouad)
 
-### Modélisation non paramétrique du prix en fonction de l'année (Emilie)
+### 3. Modélisation non paramétrique du prix en fonction de l'année (Emilie)
 
-## Amélioration du modèle par en utilisant plusieurs variables explicatives
+## Partie 2 : Amélioration du modèle non paramétrique en utilisant plusieurs variables explicatives
+
+Dans cette partie, on cherche à améliorer la prédiction du prix au m² en utilisant plusieurs variables explicatives en même temps.
+L’idée est de comparer différents types de modèles :
+- le modèle linéaire multiple
+- le modèle additif généralisé (GAM) avec B-splines
+- modèle hybride, où certaines variables sont linéaires et d’autres modélisées par des splines
+
+Nous utiliserons systématiquement la fonction anova() et les critères AIC pour comparer les modèles entre eux.
+
+### 1. Modèle linéaire linéaire multiple
+
+Ce modèle sert d’étalon pour comparer les gains des méthodes non-paramétriques.
+
+### 2. GAM avec splines
+
+Chaque variable quantitative est modélisée avec une spline cubic‐spline pénalisée. Le choix du paramètre de lissage s'effectue par validation croisée par bloc.
+
+### 3. Comparaison des modèles avec ANOVA et par le critère AIC
+
+## Partie 3 : Intégration de la variable qualitative
+
+## Conclusion
 
 
