@@ -16,7 +16,11 @@ knitr::opts_chunk$set(echo = TRUE)
 L'objectif de ce TP est de modéliser le prix des appartements à Varsovie en utilisant des méthodes non paramétriques.
 
 ```{r warning=FALSE, message=FALSE}
+require(ggplot2)
 require(HRW)
+require(mgcv)
+require(splines)
+require(dplyr)
 data(WarsawApts)
 str(WarsawApts)
 ```
@@ -69,6 +73,74 @@ Il semble que la variable la plus adaptée pour faire une régression de la form
 
 ### 3. Modélisation non paramétrique du prix en fonction de l'année (Emilie)
 
+On commence par normaliser la variable année :
+
+```{r}
+annee <- WarsawApts$construction.date
+WarsawApts$construction.date <- (annee-min(annee))/(max(annee)-min(annee)) 
+
+WarsawApts <- WarsawApts %>%
+  arrange(construction.date)
+```
+
+Ensuite on définit les modèles GAM avec la paramètre de lissage sp = \lambda que l'on 
+cherche par validation croisée par blocs.
+
+```{r}
+B <- 5
+df <- WarsawApts[sample(nrow(WarsawApts)),]
+
+n <- nrow(df) 
+block_size <- floor(n / B)
+
+grid <- 10^seq(2, -2, length = 100)
+vec_mse <- numeric(length(grid))
+
+for (i in 1:length(grid)) {
+
+  lambda <- grid[i]
+  mse_blocks <- numeric(B)
+
+  for (b in 1:B) {
+    test_idx <- ((b - 1) * block_size + 1) : (b * block_size)
+    if (b == B){
+      test_idx <- ((b - 1) * block_size + 1) : n
+    } 
+    train_data <- df[-test_idx, ] %>%
+      arrange(construction.date)
+    test_data  <- df[test_idx, ]%>%
+      arrange(construction.date)
+
+    res.fit <- gam(areaPerMzloty ~ s(construction.date, bs = "bs", k = 5, m = c(2, 2)),
+      data = train_data, sp = lambda)
+    
+    pred <- predict(res.fit, newdata = test_data)
+    mse_blocks[b] <- mean((test_data$areaPerMzloty - pred)^2)
+  }
+  vec_mse[i] <- mean(mse_blocks)
+}
+
+# plot validation croisée
+
+mse_grid <- data.frame(grid, vec_mse )
+ggplot(data = mse_grid, aes(log(grid), vec_mse))+
+  geom_point()+
+  geom_vline(xintercept = log(grid[which.min(vec_mse)]), col = "red")+
+  ggtitle("Validation croisée B-splines")+
+  theme_bw()
+
+lambda_cv <- grid[which.min(vec_mse)] 
+```
+
+On choisit alors le lambda qui minimise le mse. On obtient alors le modèle suivant :
+
+```{r}
+attach(WarsawApts)
+best.fit <- gam(areaPerMzloty ~ s(construction.date, bs = "bs", k = 5, m = c(2, 2)), data = WarsawApts, sp = lambda_cv)
+plot(construction.date, areaPerMzloty)
+lines(construction.date, predict(best.fit), type = "l", col = "red")
+```
+
 ## Partie 2 : Amélioration du modèle non paramétrique en utilisant plusieurs variables explicatives
 
 Dans cette partie, on cherche à améliorer la prédiction du prix au m² en utilisant plusieurs variables explicatives en même temps.
@@ -84,8 +156,6 @@ Nous utiliserons systématiquement la fonction anova() et les critères AIC pour
 Ce modèle sert d’étalon pour comparer les gains des méthodes non-paramétriques.
 
 ### 2. GAM avec splines
-
-Chaque variable quantitative est modélisée avec une spline cubic‐spline pénalisée. Le choix du paramètre de lissage s'effectue par validation croisée par bloc.
 
 ### 3. Comparaison des modèles avec ANOVA et par le critère AIC
 
