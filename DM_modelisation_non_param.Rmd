@@ -70,16 +70,13 @@ p4 <- ggplot(WarsawApts, aes(x = construction.date, y = areaPerMzloty)) +
 ```
 
 
-### Choix d’une variable explicative pour la modélisation univariée
+### 2. Choix d’une variable explicative pour la modélisation univariée
 
 Les graphiques précédents (P1–P4) représentent le prix au m² en fonction de la surface, de l’étage et de l’année de construction. Visuellement, aucune de ces relations ne semble strictement linéaire, en particulier pour `construction.date` où l’on observe une forme en « bosse » : les immeubles d’une période intermédiaire paraissent plus chers que les constructions très anciennes ou très récentes.
 
 Afin de choisir une variable explicative unique pour la suite, nous avons comparé, pour chacune des variables quantitatives `surface`, `floor` et `construction.date`, trois modèles paramétriques : un modèle linéaire simple, un polynôme d’ordre 2 et un polynôme d’ordre 3 de `areaPerMzloty` en fonction de cette variable. Pour chaque combinaison, nous avons relevé le coefficient de détermination R² et le critère d’information AIC, présentés dans le tableau ci-dessous.
 
 ```{r choix_var_univ, echo=TRUE, message=FALSE, warning=FALSE}
-
-# On suppose que les données sont dans `donnees`
-# et que la variable réponse s'appelle `areaPerMzloty`.
 
 donnees <- WarsawApts
 vars <- c("surface", "floor", "construction.date")
@@ -96,7 +93,7 @@ res <- data.frame(
 
 for (j in seq_along(vars)) {
   xname <- vars[j]
-  x     <- donnees[[xname]]           # on extrait la colonne
+  x     <- donnees[[xname]]
   
   # Modèle linéaire simple
   m_lin <- lm(donnees$areaPerMzloty ~ x)
@@ -126,13 +123,8 @@ Les résultats montrent que, pour `surface` et `floor`, même un polynôme cubiq
 Nous retenons donc **l’année de construction (`construction.date`)** comme variable explicative unique pour la première étape de la modélisation. Dans la suite, nous comparerons ce modèle paramétrique cubique à un modèle non paramétrique à base de splines, mieux adapté à la forme non linéaire observée entre l’année de construction et le prix au m².
 
 
-### 2. Modélisation paramétrique du prix en fonction de l'année (Fouad)
+### 2. Modélisation paramétrique du prix en fonction de la date de construction
 ```{r}
-library(HRW)
-data("WarsawApts")      # recharge le jeu de données tel qu'il est dans le package
-donnees <- WarsawApts   # on travaille avec `donnees` pour la suite
-
-library(ggplot2)
 
 m_year_poly2 <- lm(areaPerMzloty ~ poly(construction.date, 2), data = donnees)
 m_year_poly3 <- lm(areaPerMzloty ~ poly(construction.date, 3), data = donnees)
@@ -175,7 +167,6 @@ ggplot(donnees, aes(x = construction.date, y = areaPerMzloty)) +
 
 
 ```
-### Résultat des modèles paramétriques polynomiaux en fonction de l’année de construction
 
 La figure ci-dessus représente le prix au m² en fonction de l’année de construction, ainsi que les courbes ajustées par un polynôme d’ordre 2 et un polynôme d’ordre 3. Le modèle quadratique reproduit grossièrement la forme en cloche observée dans les données, mais reste assez rigide : la bosse centrale est sous-estimée et la baisse pour les immeubles récents n’est pas parfaitement capturée.
 
@@ -183,8 +174,7 @@ Le polynôme d’ordre 3 offre une meilleure flexibilité. La courbe rouge suit 
 
 Cependant, il reste un modèle **global** : une seule fonction cubique doit décrire l’ensemble de la période 1930–2008, ce qui limite la capacité à s’adapter **localement** aux différentes époques. Cette limitation motive l’introduction, dans la section suivante, d’un modèle non paramétrique à base de splines pénalisées.
 
-
-### 3. Modélisation non paramétrique du prix en fonction de l'année (Emilie)
+### 3. Modélisation non paramétrique du prix en fonction de l'année
 
 On commence par normaliser la variable année :
 
@@ -196,8 +186,7 @@ WarsawApts <- WarsawApts %>%
   arrange(construction.date)
 ```
 
-Ensuite on définit les modèles GAM avec la paramètre de lissage sp = \lambda que l'on 
-cherche par validation croisée par blocs.
+Ensuite on définit les modèles GAM avec le paramètre de lissage sp = $\lambda $ que l'on cherche par validation croisée par blocs.
 
 ```{r}
 B <- 5
@@ -257,21 +246,158 @@ lines(construction.date, predict(best.fit), type = "l", col = "red")
 
 ## Partie 2 : Amélioration du modèle non paramétrique en utilisant plusieurs variables explicatives
 
-Dans cette partie, on cherche à améliorer la prédiction du prix au m² en utilisant plusieurs variables explicatives en même temps.
-L’idée est de comparer différents types de modèles :
-- le modèle linéaire multiple
-- le modèle additif généralisé (GAM) avec B-splines
-- modèle hybride, où certaines variables sont linéaires et d’autres modélisées par des splines
-
-Nous utiliserons systématiquement la fonction anova() et les critères AIC pour comparer les modèles entre eux.
+Dans la Partie 1, nous avons étudié en détail la relation entre le prix au m² et une seule variable explicative, et nous avons constaté que l’année de construction présentait la relation la plus structurée. Cependant, il est raisonnable de penser que le prix d’un appartement ne dépend pas seulement d’une variable mais de plusieurs caractéristiques en même temps.
+Dans cette deuxième partie, nous cherchons donc à améliorer la qualité prédictive du modèle en intégrant simultanément l’ensemble des variables quantitatives.
+Nous étudions successivement :
+-un modèle linéaire multiple,
+-un modèle polynomial,
+-un modèle GAM multivarié,
+puis nous comparons ces modèles à l’aide du critère AIC.
 
 ### 1. Modèle linéaire linéaire multiple
 
-Ce modèle sert d’étalon pour comparer les gains des méthodes non-paramétriques.
+Nous commençons par ajuster un modèle linéaire classique incluant toutes les variables explicatives quantitatives :
+$$
+\text{areaPerMzloty} = 
+\beta_0 + 
+\beta_1 \, \text{surface} + 
+\beta_2 \, \text{n.rooms} + 
+\beta_3 \, \text{floor} + 
+\beta_4 \, \text{construction.date} + 
+\varepsilon
+$$
 
-### 2. GAM avec splines
+```{r}
 
-### 3. Comparaison des modèles avec ANOVA et par le critère AIC
+m_lm <- lm(areaPerMzloty ~ surface + n.rooms + floor + construction.date,
+data = WarsawApts)
+
+summary(m_lm)
+AIC(m_lm)
+
+```
+
+Ce modèle sert d’étalon pour comparer les gains des méthodes non-paramétriques. On obtient un AIC de 3649. Le $R^2$ ajusté vaut 0.12, ce qui n'est pas très satisfaisant. Le modèle parvient à expliquer une partie de la variabilité des prix, mais il lui manque de la flexibilité pour capturer les effets non linéaires mis en évidence en Partie 1.
+
+### 2. Modèle polynomial
+
+Pour introduire davantage de flexibilité sans tomber dans un modèle entièrement non paramétrique, nous ajoutons un terme quadratique pour chaque variable explicative. Le modèle devient :
+$$\text{areaPerMzloty} = 
+\beta_0 + 
+\beta_{11} \, \text{surface} + 
+\beta_{12} \, \text{surface}^2 + 
+\beta_{21} \, \text{n.rooms} + 
+\beta_{22} \, \text{n.rooms}^2 + 
+\beta_{31} \, \text{floor} + 
+\beta_{32} \, \text{floor}^2 + 
+\beta_{41} \, \text{construction.date} + 
+\beta_{42} \, \text{construction.date}^2 + 
+\varepsilon$$
+
+```{r}
+m_poly <- lm(areaPerMzloty ~
+poly(surface, 2, raw = TRUE) +
+poly(n.rooms, 2, raw = TRUE) +
+poly(floor, 2, raw = TRUE) +
+poly(construction.date, 2, raw = TRUE),
+data = WarsawApts)
+
+summary(m_poly)
+AIC(m_poly)
+
+```
+Dans ce modèle, le $R^2$ ajusté est meilleur (0.26): le modèle capture plus de structure. En contrepartie, l’interprétation devient difficile et le nombre de paramètres augmente rapidement. L'AIC est plus faible (3581) donc la complexité supplémentaire du modèle est justifiée.
+
+Comparons à présent les modèles linéaires et polynomiaux, qui sont imbriqués, via ANOVA.
+```{r}
+anova(m_lm, m_poly)
+
+```
+
+
+### 3. GAM avec splines
+
+Nous passons maintenant à un modèle non paramétrique multivarié de type GAM.
+Chaque variable explicative est représentée par une spline pénalisée :
+$$
+\text{areaPerMzloty} = 
+s_1(\text{surface}) + 
+s_2(\text{n.rooms}) + 
+s_3(\text{floor}) + 
+s_4(\text{construction.date}) + 
+\varepsilon$$
+
+```{r}
+library(mgcv)
+
+m_gam <- gam(areaPerMzloty ~
+s(surface, bs="bs", k=10, m=c(2,2)) +
+s(n.rooms, bs="bs", k=6, m=c(2,2)) +
+s(floor, bs="bs", k=6, m=c(2,2)) +
+s(construction.date, bs="bs", k=10, m=c(2,2)),
+data = WarsawApts)
+
+summary(m_gam)
+AIC(m_gam)
+
+```
+
+Les edf (effective degrees of freedom) montrent la complexité réellement utilisée par chaque spline. On voit que les edf de n.rooms et floor sont proches de 1, ce qui montre un effet plutôt linéaire (ces variables ne bénéficient pas de la complexité des splines).
+
+On voit que la surface et la date de construction sont les variables les plus significatives (p-valeur < 0.001), et que le nombre de pièces et l'étage ne sont pas significatives.
+
+Le $R^2$ ajusté est bien meilleur : il vaut 0.39. Le critère AIC quand à lui est plus lègèrement plus faible que pour le modèle polynomial, ce qui nous pousse à selectionner les splines par rapport au modèle polynomial.
+
+On peut visualiser l'allure de la spline sur chaque variable :
+```{r}
+library(ggplot2)
+library(mgcv)
+library(dplyr)
+library(tidyr)
+
+pred_list <- list()
+for (i in seq_along(m_gam$smooth)) {
+  smooth_i <- m_gam$smooth[[i]]$term
+  pred <- predict(m_gam, type = "terms", se.fit = TRUE)
+  df <- data.frame(
+    x = m_gam$model[[smooth_i]],
+    fit = pred$fit[, i],
+    se = pred$se.fit[, i],
+    residuals = residuals(m_gam)
+  )
+  df$variable <- smooth_i
+  pred_list[[i]] <- df
+}
+
+df_all <- bind_rows(pred_list)
+
+ggplot(df_all, aes(x = x, y = fit)) +
+  geom_ribbon(aes(ymin = fit - 2*se, ymax = fit + 2*se), fill = "lightblue", alpha = 0.4) +
+  geom_line(color = "blue") +
+  geom_point(aes(y = residuals), size = 0.8, alpha = 0.5) +
+  facet_wrap(~variable, scales = "free_x") +
+  theme_minimal()
+
+
+```
+
+### 4. Comparaison des modèles par le critère AIC
+
+Récapitulons les scores AIC obtenus : 
+
+```{r}
+AIC(m_lm, m_poly, m_gam)
+
+```
+
+Le modèle linéaire est le plus simple mais ne capture pas les effets non linéaires.
+Le modèle polynomial représente une amélioration, mais sa flexibilité augmente le nombre de paramètres.
+Le modèle GAM offre le meilleur compromis : entre complexité et flexibilité.
+
+Visualisons à présent les prédictions des différents modèles.
+
+
+
 
 ## Partie 3 : Intégration de la variable qualitative
 
