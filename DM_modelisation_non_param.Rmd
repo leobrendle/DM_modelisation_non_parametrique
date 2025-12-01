@@ -4,9 +4,9 @@ title: "TP Apprentissage statistique : modelisation non-paramétrique par des fo
 author: "Fouad AFANE, Emilie GALLAND, Léo BRENDLE"
 date: "Décembre 2025"
 output:
-  pdf_document: default
   html_document:
     df_print: paged
+  pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -176,7 +176,10 @@ Cependant, il reste un modèle **global** : une seule fonction cubique doit déc
 
 ### 3. Modélisation non paramétrique du prix en fonction de l'année
 
-On commence par normaliser la variable année :
+Nous allons dans cette partie construire un modèle B-spline pénalisée en utilisant la variable
+annee.construction.
+
+On commence par normaliser cette variable :
 
 ```{r}
 annee <- WarsawApts$construction.date
@@ -190,12 +193,13 @@ Ensuite on définit les modèles GAM avec le paramètre de lissage sp = $\lambda
 
 ```{r}
 B <- 5
+set.seed(783)
 df <- WarsawApts[sample(nrow(WarsawApts)),]
 
 n <- nrow(df) 
 block_size <- floor(n / B)
 
-grid <- 10^seq(2, -2, length = 100)
+grid <- 10^seq(1, -2, length = 100)
 vec_mse <- numeric(length(grid))
 
 for (i in 1:length(grid)) {
@@ -235,14 +239,23 @@ lambda_cv <- grid[which.min(vec_mse)]
 lambda_cv
 ```
 
-On choisit alors le lambda qui minimise le mse. On obtient alors le modèle suivant :
+On choisit alors le lambda qui minimise le mse, c'est à dire \lambda = 3.05 . 
+On obtient alors le modèle suivant :
 
 ```{r}
 attach(WarsawApts)
 best.fit <- gam(areaPerMzloty ~ s(construction.date, bs = "bs", k = 5, m = c(2, 2)), data = WarsawApts, sp = lambda_cv)
-plot(construction.date, areaPerMzloty)
-lines(construction.date, predict(best.fit), type = "l", col = "red")
+annee <- construction.date*(max(annee)-min(annee))+min(annee) #reconversion de la variable
+
+ggplot(data = data2, aes(x = annee, y = areaPerMzloty)) +
+  geom_point() +  
+  geom_line(aes(y = predict(best.fit), color = "B-spline pénalisée")) +  
+  theme_bw() + 
+  ggtitle("Prix au m² en fonction de l'année") +
+  scale_color_manual(values = c("B-spline pénalisée" = "red"))  
 ```
+On peut alors remarquer que le modèle semble bien s'adapter aux données sans trop coller aux données, ce qui permet de limiter le surapprentissage.
+
 
 ## Partie 2 : Amélioration du modèle non paramétrique en utilisant plusieurs variables explicatives
 
