@@ -1,8 +1,10 @@
 ---
-title: "TP Apprentissage statistique : modelisation non-paramétrique par des fonctions B-splines"
+title: "TP Apprentissage statistique : modelisation non-paramétrique par des fonctions
+  B-splines"
 author: "Fouad AFANE, Emilie GALLAND, Léo BRENDLE"
 date: "Décembre 2025"
 output:
+  pdf_document: default
   html_document:
     df_print: paged
 ---
@@ -67,9 +69,120 @@ p4 <- ggplot(WarsawApts, aes(x = construction.date, y = areaPerMzloty)) +
 (p3 | p4)
 ```
 
-Il semble que la variable la plus adaptée pour faire une régression de la forme $y = f(x)$ soit l'année de construction. On va commencer pour faire une régression linéaire simple et polynomiale pour montrer qu'une méthode non paramétrique est plus adéptée.
+
+### Choix d’une variable explicative pour la modélisation univariée
+
+Les graphiques précédents (P1–P4) représentent le prix au m² en fonction de la surface, de l’étage et de l’année de construction. Visuellement, aucune de ces relations ne semble strictement linéaire, en particulier pour `construction.date` où l’on observe une forme en « bosse » : les immeubles d’une période intermédiaire paraissent plus chers que les constructions très anciennes ou très récentes.
+
+Afin de choisir une variable explicative unique pour la suite, nous avons comparé, pour chacune des variables quantitatives `surface`, `floor` et `construction.date`, trois modèles paramétriques : un modèle linéaire simple, un polynôme d’ordre 2 et un polynôme d’ordre 3 de `areaPerMzloty` en fonction de cette variable. Pour chaque combinaison, nous avons relevé le coefficient de détermination R² et le critère d’information AIC, présentés dans le tableau ci-dessous.
+
+```{r choix_var_univ, echo=TRUE, message=FALSE, warning=FALSE}
+
+# On suppose que les données sont dans `donnees`
+# et que la variable réponse s'appelle `areaPerMzloty`.
+
+donnees <- WarsawApts
+vars <- c("surface", "floor", "construction.date")
+
+res <- data.frame(
+  var       = vars,
+  R2_lin    = NA,
+  R2_poly2  = NA,
+  R2_poly3  = NA,
+  AIC_lin   = NA,
+  AIC_poly2 = NA,
+  AIC_poly3 = NA
+)
+
+for (j in seq_along(vars)) {
+  xname <- vars[j]
+  x     <- donnees[[xname]]           # on extrait la colonne
+  
+  # Modèle linéaire simple
+  m_lin <- lm(donnees$areaPerMzloty ~ x)
+  
+  # Polynôme ordre 2
+  m_poly2 <- lm(donnees$areaPerMzloty ~ poly(x, 2))
+  
+  # Polynôme ordre 3
+  m_poly3 <- lm(donnees$areaPerMzloty ~ poly(x, 3))
+  
+  res$R2_lin[j]    <- summary(m_lin)$r.squared
+  res$R2_poly2[j]  <- summary(m_poly2)$r.squared
+  res$R2_poly3[j]  <- summary(m_poly3)$r.squared
+  
+  res$AIC_lin[j]   <- AIC(m_lin)
+  res$AIC_poly2[j] <- AIC(m_poly2)
+  res$AIC_poly3[j] <- AIC(m_poly3)
+}
+
+res
+
+```
+
+
+Les résultats montrent que, pour `surface` et `floor`, même un polynôme cubique n’explique qu’une faible part de la variabilité du prix au m² (R² inférieur à 0,10) et conduit à des AIC relativement élevés (autour de 3 660–3 690). En revanche, pour `construction.date`, le polynôme d’ordre 3 atteint un R² proche de 0,30 et un AIC nettement plus faible (environ 3 558), ce qui en fait de loin le meilleur modèle paramétrique parmi ceux testés.
+
+Nous retenons donc **l’année de construction (`construction.date`)** comme variable explicative unique pour la première étape de la modélisation. Dans la suite, nous comparerons ce modèle paramétrique cubique à un modèle non paramétrique à base de splines, mieux adapté à la forme non linéaire observée entre l’année de construction et le prix au m².
+
 
 ### 2. Modélisation paramétrique du prix en fonction de l'année (Fouad)
+```{r}
+library(HRW)
+data("WarsawApts")      # recharge le jeu de données tel qu'il est dans le package
+donnees <- WarsawApts   # on travaille avec `donnees` pour la suite
+
+library(ggplot2)
+
+m_year_poly2 <- lm(areaPerMzloty ~ poly(construction.date, 2), data = donnees)
+m_year_poly3 <- lm(areaPerMzloty ~ poly(construction.date, 3), data = donnees)
+
+newdat <- data.frame(
+  construction.date = seq(min(donnees$construction.date),
+                          max(donnees$construction.date),
+                          length.out = 200)
+)
+newdat$pred2 <- predict(m_year_poly2, newdat)
+newdat$pred3 <- predict(m_year_poly3, newdat)
+
+newdat_long <- rbind(
+  data.frame(
+    construction.date = newdat$construction.date,
+    prediction        = newdat$pred2,
+    modele            = "Polynôme degré 2"
+  ),
+  data.frame(
+    construction.date = newdat$construction.date,
+    prediction        = newdat$pred3,
+    modele            = "Polynôme degré 3"
+  )
+)
+
+ggplot(donnees, aes(x = construction.date, y = areaPerMzloty)) +
+  geom_point(alpha = 0.5, size = 1) +
+  geom_line(data = newdat_long,
+            aes(y = prediction, colour = modele),
+            linewidth = 1.1) +
+  scale_colour_manual(values = c("Polynôme degré 2" = "blue",
+                                 "Polynôme degré 3" = "red")) +
+  labs(
+    x = "Année de construction",
+    y = "Prix au m²",
+    title = "Prix au m² ~ année : polynômes d'ordre 2 et 3",
+    colour = ""
+  ) +
+  theme_bw()
+
+
+```
+### Résultat des modèles paramétriques polynomiaux en fonction de l’année de construction
+
+La figure ci-dessus représente le prix au m² en fonction de l’année de construction, ainsi que les courbes ajustées par un polynôme d’ordre 2 et un polynôme d’ordre 3. Le modèle quadratique reproduit grossièrement la forme en cloche observée dans les données, mais reste assez rigide : la bosse centrale est sous-estimée et la baisse pour les immeubles récents n’est pas parfaitement capturée.
+
+Le polynôme d’ordre 3 offre une meilleure flexibilité. La courbe rouge suit plus fidèlement la hausse des prix au m² pour les immeubles construits autour de la période intermédiaire, puis la baisse pour les constructions les plus récentes. Cela se traduit par un R² plus élevé (environ 0,30 contre 0,24 pour l’ordre 2) et un AIC plus faible. Ce modèle cubique constitue donc notre **meilleur modèle paramétrique univarié** pour l’effet de l’année de construction.
+
+Cependant, il reste un modèle **global** : une seule fonction cubique doit décrire l’ensemble de la période 1930–2008, ce qui limite la capacité à s’adapter **localement** aux différentes époques. Cette limitation motive l’introduction, dans la section suivante, d’un modèle non paramétrique à base de splines pénalisées.
+
 
 ### 3. Modélisation non paramétrique du prix en fonction de l'année (Emilie)
 
@@ -130,6 +243,7 @@ ggplot(data = mse_grid, aes(log(grid), vec_mse))+
   theme_bw()
 
 lambda_cv <- grid[which.min(vec_mse)] 
+lambda_cv
 ```
 
 On choisit alors le lambda qui minimise le mse. On obtient alors le modèle suivant :
