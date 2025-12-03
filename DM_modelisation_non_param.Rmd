@@ -11,6 +11,7 @@ output:
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+library(mgcv)
 ```
 
 ## Introduction
@@ -179,6 +180,13 @@ Cependant, il reste un modèle **global** : une seule fonction cubique doit déc
 Nous allons dans cette partie construire un modèle B-spline pénalisée en utilisant la variable
 annee.construction.
 
+On construit donc un modèle (M):
+
+$$
+\text{areaPerMzloty} = 
+f(\text{construction.date}) + 
+\varepsilon$$
+
 On commence par normaliser cette variable :
 
 ```{r}
@@ -246,6 +254,7 @@ On obtient alors le modèle suivant :
 attach(WarsawApts)
 best.fit <- gam(areaPerMzloty ~ s(construction.date, bs = "bs", k = 5, m = c(2, 2)), data = WarsawApts, sp = lambda_cv)
 annee <- construction.date*(max(annee)-min(annee))+min(annee) #reconversion de la variable
+data2 <- data.frame(annee, areaPerMzloty)
 
 ggplot(data = data2, aes(x = annee, y = areaPerMzloty)) +
   geom_point() +  
@@ -413,6 +422,161 @@ Visualisons à présent les prédictions des différents modèles.
 
 
 ## Partie 3 : Intégration de la variable qualitative
+
+Dans les parties précédentes, nous avons travaillé uniquement avec des variables explicatives quantitatives.  
+Le jeu de données contient cependant une variable qualitative importante : 'district', qui indique le district de Varsovie dans lequel se trouve l’appartement.  
+Dans cette partie, on cherche à voir si le niveau de prix et la forme de la relation avec l’année de construction peuvent différer selon le district.
+
+On commence par un modèle linéaire de type ANCOVA, puis on utilise des modèles GAM qui autorisent une relation non linéaire entre 'construction.date' et 'areaPerMzloty', d’abord commune à tous les districts, puis spécifique à chaque district.
+
+### 1. Modèle linéaire avec district (référence paramétrique)
+
+On considère d’abord un modèle linéaire additif où l’on combine la variable qualitative 'district' et la variable quantitative 'construction.date' :
+
+$$
+\text{areaPerMzloty} = 
+\beta_0 +
+\beta_{\text{district}} +
+\beta_1 \, \text{construction.date} +
+\varepsilon.
+$$
+
+Ce modèle permet de capter un effet de niveau différent selon le district (via les coefficients associés aux modalités de 'district'), tout en gardant une pente commune pour l’année de construction.
+
+```{r}
+m_lin_qual <- gam(areaPerMzloty ~ district + construction.date,
+data = WarsawApts)
+
+summary(m_lin_qual)
+
+```
+
+Dans ce premier modèle, on combine la variable qualitative `district` et la variable quantitative `construction.date` de façon linéaire.
+
+La référence pour `district` est le district de base (ici celui qui n’apparaît pas explicitement dans le tableau des coefficients). L’intercept (~121.8) correspond donc à la valeur moyenne de `areaPerMzloty` dans ce district de référence, pour une valeur moyenne de `construction.date`.
+
+Le coefficient de `construction.date` est négatif (-14.2) et significatif. Cela suggère qu’avec ce modèle linéaire, les appartements construits plus récemment ont en moyenne un prix au m² légèrement plus faible, une fois le district fixé. Cet effet reste cependant modeste et il est imposé comme strictement linéaire.
+
+Pour les districts, seul `districtSrodmiescie` apparaît significativement différent du district de référence, avec un effet d’environ -15 points sur `areaPerMzloty` (à année de construction donnée). Les coefficients associés à `districtWola` et `districtZoliborz` ne sont pas significatifs au seuil habituel.
+
+Enfin, la part de variance expliquée par le modèle reste faible (R² ajusté ≈ 0.12). Ce modèle linéaire capture donc une partie de la structure, mais il laisse une grande variabilité inexpliquée. Cela justifie d’essayer des modèles plus flexibles, en particulier un modèle GAM avec un effet lissé de `construction.date`.
+
+
+### 2. Modèle GAM avec effet lissé commun de l’année de construction
+
+Le modèle précédent suppose que l’effet de l’année de construction est linéaire.  
+On remplace maintenant ce terme linéaire par une spline pénalisée, tout en conservant un effet de niveau par district :
+
+$$
+\text{areaPerMzloty} = 
+\beta_0 +
+\beta_{\text{district}} +
+f(\text{construction.date}) +
+\varepsilon,
+$$
+
+où \(f\) est une fonction lisse estimée par B-splines pénalisées.
+
+```{r}
+m_gam_commune <- gam(
+areaPerMzloty ~ district +
+s(construction.date, bs = "bs", k = 5, m = c(2, 2)),
+data = WarsawApts
+)
+
+summary(m_gam_commune)
+
+plot(m_gam_commune, shade = TRUE, seWithMean = TRUE, scale = 0)
+
+```
+
+On observe une relation clairement non linéaire : l’effet augmente jusqu’aux constructions de la fin des années 1970, puis diminue das les années 2000. Cet effet est estimé conditionnellement au district, et centré (valeur moyenne proche de zéro).
+
+
+
+
+
+
+### 3. Modèle GAM avec courbes spécifiques par district
+
+Enfin, on autorise l’effet de l’année de construction à varier selon le district.  
+On obtient alors un modèle où chaque district possède sa propre fonction lissée :
+
+$$
+\text{areaPerMzloty} = 
+\beta_0 +
+\beta_{\text{district}} +
+f_{\text{district}}(\text{construction.date}) +
+\varepsilon,
+$$
+```{r}
+library(mgcv)
+
+WarsawApts$district <- factor(WarsawApts$district)
+levels_d <- levels(WarsawApts$district)
+
+m_gam_par_district <- gam(
+  areaPerMzloty ~ district +
+    s(construction.date, by = district,
+      bs = "bs", k = 5, m = c(2, 2)),
+  data = WarsawApts
+)
+
+summary(m_gam_par_district)
+
+par(mfrow = c(2, 2),
+    mar = c(4, 5, 3, 1))  # un peu de marge en haut pour le titre
+
+# Colonne de gauche : ylab, colonne de droite : ylab vide pour pas coller
+
+plot(m_gam_par_district, select = 1,
+     seWithMean = TRUE, rug = FALSE,
+     xlab = "année de construction (centrée/réduite)",
+     ylab = "effet sur areaPerMzloty",
+     main = paste("District :", levels_d[1]))
+
+plot(m_gam_par_district, select = 2,
+     seWithMean = TRUE, rug = FALSE,
+     xlab = "année de construction (centrée/réduite)",
+     ylab = "",
+     main = paste("District :", levels_d[2]))
+
+plot(m_gam_par_district, select = 3,
+     seWithMean = TRUE, rug = FALSE,
+     xlab = "année de construction (centrée/réduite)",
+     ylab = "effet sur areaPerMzloty",
+     main = paste("District :", levels_d[3]))
+
+plot(m_gam_par_district, select = 4,
+     seWithMean = TRUE, rug = FALSE,
+     xlab = "année de construction (centrée/réduite)",
+     ylab = "",
+     main = paste("District :", levels_d[4]))
+
+```
+
+Les courbes estimées montrent que l’effet de l’année de construction sur areaPerMzloty varie nettement selon le district. 
+**À Mokotow**, la relation est clairement non linéaire, avec un maximum autour des constructions des années 1970–1980, suggérant une valorisation particulière de cette période. À Srodmiescie, l’effet est plus stable et de faible amplitude, indiquant un marché plus homogène où l’âge du bâtiment joue un rôle limité. À Wola, la courbe est presque plate et les intervalles de confiance larges, ce qui traduit une influence très faible de l’année de construction sur le prix. Enfin, à Zoliborz, la relation est fortement non linéaire, avec un pic marqué suivi d’une baisse, révélant une forte hétérogénéité selon les générations d’immeubles. Ces différences justifient l’utilisation d’un modèle non paramétrique où la forme de la fonction peut varier par district.
+
+### 4. Comparaison des modèles
+
+Pour résumer, on compare les trois modèles :
+
+- Modèle linéaire avec district ('m_lin_qual') ;
+- Modèle GAM avec courbe commune pour l’année de construction ('m_gam_commune') ;
+- Modèle GAM avec courbes spécifiques par district ('m_gam_par_district').
+
+On utilise le critère AIC et des tests F (modèles emboîtés) comme dans le TP 2 pour décider si la flexibilité supplémentaire est justifiée.
+
+```{r}
+AIC(m_lin_qual, m_gam_commune, m_gam_par_district)
+
+anova(m_lin_qual, m_gam_commune, test = "F")
+anova(m_gam_commune, m_gam_par_district, test = "F")
+
+```
+La comparaison montre d’abord que la spline commune améliore très nettement le modèle par rapport à la relation linéaire (p < 2.2e−16), ce qui confirme le caractère non linéaire de l’effet de l’année de construction. La comparaison suivante indique qu’autoriser une spline différente selon le district améliore également l’ajustement, mais de manière plus limitée (p ≈ 0.073). Ainsi, la non-linéarité est clairement établie, et une variation de la forme par district est plausible, même si l’évidence statistique reste marginale.
+
 
 ## Conclusion
 
