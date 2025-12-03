@@ -1,12 +1,10 @@
 ---
-title: "TP Apprentissage statistique : modelisation non-paramétrique par des fonctions
-  B-splines"
+title: "TP modélisation non-paramétrique par des fonctions B-splines"
 author: "Fouad AFANE, Emilie GALLAND, Léo BRENDLE"
-date: "Décembre 2025"
 output:
+  pdf_document: default
   html_document:
     df_print: paged
-  pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -16,33 +14,23 @@ library(mgcv)
 
 ## Introduction
 
-L'objectif de ce TP est de modéliser le prix des appartements à Varsovie en utilisant des méthodes non paramétriques.
+L'objectif de ce TP est de modéliser le prix des appartements à Varsovie en utilisant des méthodes non paramétriques. Les variables du jeu de données sont les suivantes : **surface** : surface en mètres carrés, **district** : district (variable facteur à 4 modalités), **n.rooms** : nombre de pièces, **floor** : étage, **construction.date** : année de construction et **areaPerMzloty** : prix au mètre carré (variable à prédire).
 
-```{r warning=FALSE, message=FALSE}
+```{r warning=FALSE, message=FALSE, echo=FALSE}
 require(ggplot2)
 require(HRW)
 require(mgcv)
 require(splines)
 require(dplyr)
 data(WarsawApts)
-str(WarsawApts)
 ```
-
-Les variables du jeu de données sont les suivantes : 
-
-- **surface** : surface en mètres carrés  
-- **district** : district (variable facteur à 4 modalités)  
-- **n.rooms** : nombre de pièces  
-- **floor** : étage  
-- **construction.date** : année de construction  
-- **areaPerMzloty** : prix au mètre carré (variable à prédire)
 
 ## Partie 1 : Prédiction avec une seule variable explicative
 ### 1. Exploration des variables
 
 Pour commencer, on veut modéliser le prix des appartements en fonction d'une seule variable. Pour choisir la plus adaptée, traçons le prix des appartements en fonction des différentes variables. On considère que l'on dispose de 4 variables explicatives quantitatives et une variable qualitative (district), que l'on va écarter de l'étude pour le moment.
 
-```{r, message=FALSE}
+```{r, message=FALSE, echo=FALSE, out.width='60%', fig.align='center'}
 library(ggplot2)
 library(patchwork)
 
@@ -53,7 +41,7 @@ p1 <- ggplot(WarsawApts, aes(x = surface, y = areaPerMzloty)) +
 
 p2 <- ggplot(WarsawApts, aes(x = n.rooms, y = areaPerMzloty)) +
   geom_point(color = "blue") +
-  labs(title = "Prix en fonction du nb de chambres",
+  labs(title = "Prix en fonction du nb pièces",
        x = "Nombre de chambres", y = "Prix au m²")
 
 p3 <- ggplot(WarsawApts, aes(x = floor, y = areaPerMzloty)) +
@@ -63,7 +51,7 @@ p3 <- ggplot(WarsawApts, aes(x = floor, y = areaPerMzloty)) +
 
 p4 <- ggplot(WarsawApts, aes(x = construction.date, y = areaPerMzloty)) +
   geom_point(color = "purple") +
-  labs(title = "Prix en fonction de l'année de construction",
+  labs(title = "Prix en fonction de l'année",
        x = "Année de construction", y = "Prix au m²")
 
 (p1 | p2) /
@@ -73,11 +61,11 @@ p4 <- ggplot(WarsawApts, aes(x = construction.date, y = areaPerMzloty)) +
 
 ### 2. Choix d’une variable explicative pour la modélisation univariée
 
-Les graphiques précédents (P1–P4) représentent le prix au m² en fonction de la surface, de l’étage et de l’année de construction. Visuellement, aucune de ces relations ne semble strictement linéaire, en particulier pour `construction.date` où l’on observe une forme en « bosse » : les immeubles d’une période intermédiaire paraissent plus chers que les constructions très anciennes ou très récentes.
+Les graphiques précédents représentent le prix au m² en fonction de la surface, de l’étage et de l’année de construction. Visuellement, aucune de ces relations ne semble strictement linéaire, en particulier pour `construction.date` où l’on observe une forme en « bosse » : les immeubles d’une période intermédiaire paraissent plus chers que les constructions très anciennes ou très récentes.
 
 Afin de choisir une variable explicative unique pour la suite, nous avons comparé, pour chacune des variables quantitatives `surface`, `floor` et `construction.date`, trois modèles paramétriques : un modèle linéaire simple, un polynôme d’ordre 2 et un polynôme d’ordre 3 de `areaPerMzloty` en fonction de cette variable. Pour chaque combinaison, nous avons relevé le coefficient de détermination R² et le critère d’information AIC, présentés dans le tableau ci-dessous.
 
-```{r choix_var_univ, echo=TRUE, message=FALSE, warning=FALSE}
+```{r choix_var_univ, echo=FALSE, message=FALSE, warning=FALSE}
 
 donnees <- WarsawApts
 vars <- c("surface", "floor", "construction.date")
@@ -114,6 +102,7 @@ for (j in seq_along(vars)) {
   res$AIC_poly3[j] <- AIC(m_poly3)
 }
 
+res <- as_tibble(res)
 res
 
 ```
@@ -124,8 +113,8 @@ Les résultats montrent que, pour `surface` et `floor`, même un polynôme cubiq
 Nous retenons donc **l’année de construction (`construction.date`)** comme variable explicative unique pour la première étape de la modélisation. Dans la suite, nous comparerons ce modèle paramétrique cubique à un modèle non paramétrique à base de splines, mieux adapté à la forme non linéaire observée entre l’année de construction et le prix au m².
 
 
-### 2. Modélisation paramétrique du prix en fonction de la date de construction
-```{r}
+### 3. Modélisation paramétrique du prix en fonction de la date de construction
+```{r, echo=FALSE, out.width='60%', fig.align='center'}
 
 m_year_poly2 <- lm(areaPerMzloty ~ poly(construction.date, 2), data = donnees)
 m_year_poly3 <- lm(areaPerMzloty ~ poly(construction.date, 3), data = donnees)
@@ -175,7 +164,7 @@ Le polynôme d’ordre 3 offre une meilleure flexibilité. La courbe rouge suit 
 
 Cependant, il reste un modèle **global** : une seule fonction cubique doit décrire l’ensemble de la période 1930–2008, ce qui limite la capacité à s’adapter **localement** aux différentes époques. Cette limitation motive l’introduction, dans la section suivante, d’un modèle non paramétrique à base de splines pénalisées.
 
-### 3. Modélisation non paramétrique du prix en fonction de l'année
+### 4. Modélisation non paramétrique du prix en fonction de l'année
 
 Nous allons dans cette partie construire un modèle B-spline pénalisée en utilisant la variable
 annee.construction.
@@ -187,9 +176,7 @@ $$
 f(\text{construction.date}) + 
 \varepsilon$$
 
-On commence par normaliser cette variable :
-
-```{r}
+```{r, echo=FALSE, out.width='60%', fig.align='center'}
 annee <- WarsawApts$construction.date
 WarsawApts$construction.date <- (annee-min(annee))/(max(annee)-min(annee)) 
 
@@ -197,9 +184,9 @@ WarsawApts <- WarsawApts %>%
   arrange(construction.date)
 ```
 
-Ensuite on définit les modèles GAM avec le paramètre de lissage sp = $\lambda $ que l'on cherche par validation croisée par blocs.
+On commence par normaliser cette variable. Ensuite on définit les modèles GAM avec le paramètre de lissage sp = \( \lambda \) que l'on cherche par validation croisée par blocs.
 
-```{r}
+```{r, echo=FALSE, out.width='60%', fig.align='center'}
 B <- 5
 set.seed(783)
 df <- WarsawApts[sample(nrow(WarsawApts)),]
@@ -244,13 +231,13 @@ ggplot(data = mse_grid, aes(log(grid), vec_mse))+
   theme_bw()
 
 lambda_cv <- grid[which.min(vec_mse)] 
-lambda_cv
+cat("lambda_min :", lambda_cv, "\n")
 ```
 
-On choisit alors le lambda qui minimise le mse, c'est à dire \lambda = 3.05 . 
+On choisit alors le lambda qui minimise le mse, c'est à dire $\lambda = 3.05$ . 
 On obtient alors le modèle suivant :
 
-```{r}
+```{r, echo=FALSE, out.width='60%', fig.align='center'}
 attach(WarsawApts)
 best.fit <- gam(areaPerMzloty ~ s(construction.date, bs = "bs", k = 5, m = c(2, 2)), data = WarsawApts, sp = lambda_cv)
 annee <- construction.date*(max(annee)-min(annee))+min(annee) #reconversion de la variable
@@ -276,7 +263,7 @@ Nous étudions successivement :
 -un modèle GAM multivarié,
 puis nous comparons ces modèles à l’aide du critère AIC.
 
-### 1. Modèle linéaire linéaire multiple
+### 1. Modèle linéaire multiple
 
 Nous commençons par ajuster un modèle linéaire classique incluant toutes les variables explicatives quantitatives :
 $$
@@ -289,34 +276,38 @@ $$
 \varepsilon
 $$
 
-```{r}
+```{r, message=FALSE}
 
-m_lm <- lm(areaPerMzloty ~ surface + n.rooms + floor + construction.date,
-data = WarsawApts)
-
-summary(m_lm)
-AIC(m_lm)
-
+m_lm <- lm(areaPerMzloty ~ surface + n.rooms + floor + construction.date, data = WarsawApts)
 ```
+
+```{r, echo=FALSE}
+
+# Extraire R² et AIC
+r_squared <- summary(m_lm)$r.squared
+model_aic <- AIC(m_lm)
+
+# Mettre avec noms
+resultats <- c("R2" = r_squared, "AIC" = model_aic)
+
+# Afficher
+resultats
+```
+
 
 Ce modèle sert d’étalon pour comparer les gains des méthodes non-paramétriques. On obtient un AIC de 3649. Le $R^2$ ajusté vaut 0.12, ce qui n'est pas très satisfaisant. Le modèle parvient à expliquer une partie de la variabilité des prix, mais il lui manque de la flexibilité pour capturer les effets non linéaires mis en évidence en Partie 1.
 
 ### 2. Modèle polynomial
 
 Pour introduire davantage de flexibilité sans tomber dans un modèle entièrement non paramétrique, nous ajoutons un terme quadratique pour chaque variable explicative. Le modèle devient :
-$$\text{areaPerMzloty} = 
-\beta_0 + 
-\beta_{11} \, \text{surface} + 
-\beta_{12} \, \text{surface}^2 + 
-\beta_{21} \, \text{n.rooms} + 
-\beta_{22} \, \text{n.rooms}^2 + 
-\beta_{31} \, \text{floor} + 
-\beta_{32} \, \text{floor}^2 + 
-\beta_{41} \, \text{construction.date} + 
-\beta_{42} \, \text{construction.date}^2 + 
-\varepsilon$$
 
-```{r}
+\[
+\text{areaPerMzloty} = \beta_0 + \beta_{11}\,\text{surface} + \beta_{12}\,\text{surface}^2 + \beta_{21}\,\text{n.rooms} + \beta_{22}\,\text{n.rooms}^2 + \beta_{31}\,\text{floor} + \beta_{32}\,\text{floor}^2 + \beta_{41}\,\text{date} + \beta_{42}\,\text{date}^2 + \varepsilon
+\]
+
+
+
+```{r, echo=FALSE}
 m_poly <- lm(areaPerMzloty ~
 poly(surface, 2, raw = TRUE) +
 poly(n.rooms, 2, raw = TRUE) +
@@ -324,18 +315,19 @@ poly(floor, 2, raw = TRUE) +
 poly(construction.date, 2, raw = TRUE),
 data = WarsawApts)
 
-summary(m_poly)
-AIC(m_poly)
+# Extraire R² et AIC
+r_squared <- summary(m_poly)$r.squared
+model_aic <- AIC(m_poly)
+
+# Mettre avec noms
+resultats <- c("R2" = r_squared, "AIC" = model_aic)
+
+# Afficher
+resultats
+
 
 ```
-Dans ce modèle, le $R^2$ ajusté est meilleur (0.26): le modèle capture plus de structure. En contrepartie, l’interprétation devient difficile et le nombre de paramètres augmente rapidement. L'AIC est plus faible (3581) donc la complexité supplémentaire du modèle est justifiée.
-
-Comparons à présent les modèles linéaires et polynomiaux, qui sont imbriqués, via ANOVA.
-```{r}
-anova(m_lm, m_poly)
-
-```
-
+Dans ce modèle, le $R^2$ ajusté est meilleur (0.27): le modèle capture plus de structure. En contrepartie, l’interprétation devient difficile et le nombre de paramètres augmente rapidement. L'AIC est plus faible (3581) donc la complexité supplémentaire du modèle est justifiée.
 
 ### 3. GAM avec splines
 
@@ -349,7 +341,7 @@ s_3(\text{floor}) +
 s_4(\text{construction.date}) + 
 \varepsilon$$
 
-```{r}
+```{r, echo=FALSE, warning=FALSE}
 library(mgcv)
 
 m_gam <- gam(areaPerMzloty ~
@@ -358,8 +350,12 @@ s(n.rooms, bs="bs", k=6, m=c(2,2)) +
 s(floor, bs="bs", k=6, m=c(2,2)) +
 s(construction.date, bs="bs", k=10, m=c(2,2)),
 data = WarsawApts)
+```
 
-summary(m_gam)
+
+```{r, warning=FALSE}
+
+# summary(m_gam) (voir annexe)
 AIC(m_gam)
 
 ```
@@ -371,7 +367,7 @@ On voit que la surface et la date de construction sont les variables les plus si
 Le $R^2$ ajusté est bien meilleur : il vaut 0.39. Le critère AIC quand à lui est plus lègèrement plus faible que pour le modèle polynomial, ce qui nous pousse à selectionner les splines par rapport au modèle polynomial.
 
 On peut visualiser l'allure de la spline sur chaque variable :
-```{r}
+```{r, echo=FALSE, out.width='60%', fig.align='center'}
 library(ggplot2)
 library(mgcv)
 library(dplyr)
@@ -416,11 +412,6 @@ Le modèle linéaire est le plus simple mais ne capture pas les effets non liné
 Le modèle polynomial représente une amélioration, mais sa flexibilité augmente le nombre de paramètres.
 Le modèle GAM offre le meilleur compromis : entre complexité et flexibilité.
 
-Visualisons à présent les prédictions des différents modèles.
-
-
-
-
 ## Partie 3 : Intégration de la variable qualitative
 
 Dans les parties précédentes, nous avons travaillé uniquement avec des variables explicatives quantitatives.  
@@ -429,7 +420,7 @@ Dans cette partie, on cherche à voir si le niveau de prix et la forme de la rel
 
 On commence par un modèle linéaire de type ANCOVA, puis on utilise des modèles GAM qui autorisent une relation non linéaire entre 'construction.date' et 'areaPerMzloty', d’abord commune à tous les districts, puis spécifique à chaque district.
 
-### 1. Modèle linéaire avec district (référence paramétrique)
+### 1. Modèle linéaire avec district
 
 On considère d’abord un modèle linéaire additif où l’on combine la variable qualitative 'district' et la variable quantitative 'construction.date' :
 
@@ -447,11 +438,10 @@ Ce modèle permet de capter un effet de niveau différent selon le district (via
 m_lin_qual <- gam(areaPerMzloty ~ district + construction.date,
 data = WarsawApts)
 
-summary(m_lin_qual)
+# summary(m_lin_qual) (voir annexe)
 
 ```
 
-Dans ce premier modèle, on combine la variable qualitative `district` et la variable quantitative `construction.date` de façon linéaire.
 
 La référence pour `district` est le district de base (ici celui qui n’apparaît pas explicitement dans le tableau des coefficients). L’intercept (~121.8) correspond donc à la valeur moyenne de `areaPerMzloty` dans ce district de référence, pour une valeur moyenne de `construction.date`.
 
@@ -459,7 +449,7 @@ Le coefficient de `construction.date` est négatif (-14.2) et significatif. Cela
 
 Pour les districts, seul `districtSrodmiescie` apparaît significativement différent du district de référence, avec un effet d’environ -15 points sur `areaPerMzloty` (à année de construction donnée). Les coefficients associés à `districtWola` et `districtZoliborz` ne sont pas significatifs au seuil habituel.
 
-Enfin, la part de variance expliquée par le modèle reste faible (R² ajusté ≈ 0.12). Ce modèle linéaire capture donc une partie de la structure, mais il laisse une grande variabilité inexpliquée. Cela justifie d’essayer des modèles plus flexibles, en particulier un modèle GAM avec un effet lissé de `construction.date`.
+Enfin, la part de variance expliquée par le modèle reste faible (R² ajusté $\approx$ 0.12). Ce modèle linéaire capture donc une partie de la structure, mais il laisse une grande variabilité inexpliquée. Cela justifie d’essayer des modèles plus flexibles, en particulier un modèle GAM avec un effet lissé de `construction.date`.
 
 
 ### 2. Modèle GAM avec effet lissé commun de l’année de construction
@@ -477,25 +467,20 @@ $$
 
 où \(f\) est une fonction lisse estimée par B-splines pénalisées.
 
-```{r}
+```{r, echo=FALSE, out.width='60%', fig.align='center'}
 m_gam_commune <- gam(
 areaPerMzloty ~ district +
 s(construction.date, bs = "bs", k = 5, m = c(2, 2)),
 data = WarsawApts
 )
 
-summary(m_gam_commune)
+#summary(m_gam_commune)
 
 plot(m_gam_commune, shade = TRUE, seWithMean = TRUE, scale = 0)
 
 ```
 
 On observe une relation clairement non linéaire : l’effet augmente jusqu’aux constructions de la fin des années 1970, puis diminue das les années 2000. Cet effet est estimé conditionnellement au district, et centré (valeur moyenne proche de zéro).
-
-
-
-
-
 
 ### 3. Modèle GAM avec courbes spécifiques par district
 
@@ -509,7 +494,7 @@ $$
 f_{\text{district}}(\text{construction.date}) +
 \varepsilon,
 $$
-```{r}
+```{r, echo=FALSE, out.width='60%', fig.align='center'}
 library(mgcv)
 
 WarsawApts$district <- factor(WarsawApts$district)
@@ -522,7 +507,7 @@ m_gam_par_district <- gam(
   data = WarsawApts
 )
 
-summary(m_gam_par_district)
+#summary(m_gam_par_district)
 
 par(mfrow = c(2, 2),
     mar = c(4, 5, 3, 1))  # un peu de marge en haut pour le titre
@@ -556,7 +541,7 @@ plot(m_gam_par_district, select = 4,
 ```
 
 Les courbes estimées montrent que l’effet de l’année de construction sur areaPerMzloty varie nettement selon le district. 
-**À Mokotow**, la relation est clairement non linéaire, avec un maximum autour des constructions des années 1970–1980, suggérant une valorisation particulière de cette période. À Srodmiescie, l’effet est plus stable et de faible amplitude, indiquant un marché plus homogène où l’âge du bâtiment joue un rôle limité. À Wola, la courbe est presque plate et les intervalles de confiance larges, ce qui traduit une influence très faible de l’année de construction sur le prix. Enfin, à Zoliborz, la relation est fortement non linéaire, avec un pic marqué suivi d’une baisse, révélant une forte hétérogénéité selon les générations d’immeubles. Ces différences justifient l’utilisation d’un modèle non paramétrique où la forme de la fonction peut varier par district.
+À Mokotow, la relation est clairement non linéaire, avec un maximum autour des constructions des années 1970–1980, suggérant une valorisation particulière de cette période. À Srodmiescie, l’effet est plus stable et de faible amplitude, indiquant un marché plus homogène où l’âge du bâtiment joue un rôle limité. À Wola, la courbe est presque plate et les intervalles de confiance larges, ce qui traduit une influence très faible de l’année de construction sur le prix. Enfin, à Zoliborz, la relation est fortement non linéaire, avec un pic marqué suivi d’une baisse, révélant une forte hétérogénéité selon les générations d’immeubles. Ces différences justifient l’utilisation d’un modèle non paramétrique où la forme de la fonction peut varier par district.
 
 ### 4. Comparaison des modèles
 
@@ -575,9 +560,48 @@ anova(m_lin_qual, m_gam_commune, test = "F")
 anova(m_gam_commune, m_gam_par_district, test = "F")
 
 ```
-La comparaison montre d’abord que la spline commune améliore très nettement le modèle par rapport à la relation linéaire (p < 2.2e−16), ce qui confirme le caractère non linéaire de l’effet de l’année de construction. La comparaison suivante indique qu’autoriser une spline différente selon le district améliore également l’ajustement, mais de manière plus limitée (p ≈ 0.073). Ainsi, la non-linéarité est clairement établie, et une variation de la forme par district est plausible, même si l’évidence statistique reste marginale.
+La comparaison montre d’abord que la spline commune améliore très nettement le modèle par rapport à la relation linéaire (p < 2.2e-16), ce qui confirme le caractère non linéaire de l’effet de l’année de construction. La comparaison suivante indique qu’autoriser une spline différente selon le district améliore également l’ajustement, mais de manière plus limitée (p $\approx$ 0.073). Ainsi, la non-linéarité est clairement établie, et une variation de la forme par district est plausible, même si l’évidence statistique reste marginale.
 
 
 ## Conclusion
 
+Dans ce travail, nous avons mis en évidence l’intérêt des méthodes non paramétriques pour modéliser le prix au m² des appartements de Varsovie. L’analyse univariée a montré que l’année de construction est la variable présentant la relation la plus structurée avec le prix, et que les splines pénalisées capturent cette non-linéarité de manière bien plus flexible que les modèles paramétriques polynomiaux. L’extension multivariée confirme l’apport des GAM, qui offrent un bon compromis entre complexité et capacité d’adaptation. Enfin, l’intégration de la variable qualitative district montre que la relation entre l’année de construction et le prix varie selon les zones, ce qui souligne l’hétérogénéité géographique du marché immobilier. Les modèles GAM apparaissent ainsi comme les mieux adaptés pour décrire et prédire ces données, grâce à leur capacité à combiner effets lissés et effets catégoriels.
+
+# Annexes : summary des différents modèles {-}
+
+## Modèle linéaire multiple
+
+```{r}
+print(summary(m_lm))
+```
+
+## Modèle polynomial (m_poly)
+
+```{r}
+print(summary(m_poly))
+```
+
+## GAM multivarié
+
+```{r}
+print(summary(m_gam))
+```
+
+## Modèle linéaire avec district
+
+```{r}
+print(summary(m_lin_qual))
+```
+
+## GAM avec spline commune
+
+```{r}
+print(summary(m_gam_commune))
+```
+
+## GAM par district
+
+```{r}
+print(summary(m_gam_par_district))
+```
 
